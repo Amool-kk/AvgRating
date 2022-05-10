@@ -4,10 +4,8 @@ const movies = require('../database/moviesmodel');
 
 const getMovieData = async () => {
     const results = await movies.find();
-    // console.log(results);
     return results
 }
-// getMovieData()
 
 exports.add = async (req, res) => {
     const { moviesName, rating } = req.body;
@@ -52,10 +50,9 @@ exports.search = async (req, res) => {
                 name = element.moviesName;
             }
         }
-
-        res.status(200).send({ message: `avgRating of ${name} is ${avgRating/movieArray.length}` })
+        res.status(200).send({ message: `avgRating of ${name} is ${avgRating / movieArray.length}` })
     } catch (error) {
-        res.status(400).send({message : error.message})
+        res.status(400).send({ message: error.message })
     }
 }
 
@@ -69,8 +66,6 @@ exports.register = (req, res) => {
         password: req.body.password
     })
 
-    // const token = await user.genrateToken();
-
     user.save(user).then(data => {
         res.send(data)
     }).catch(err => {
@@ -78,30 +73,53 @@ exports.register = (req, res) => {
     })
 }
 
+let count = 0;
+let loginTry = true;
+let lefttime = 1800;
+
 
 exports.login = async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) {
         res.status(400).send({ message: "Request can not be empty!" })
     }
-
-    const userExist = await userDb.findOne({ email: email })
-
-    if (userExist) {
-        const isMatch = await bcrypt.compare(password, userExist.password)
-        if (isMatch) {
-            const token = await userExist.genrateToken();
-            res.cookie('jwt', token, {
-                httpOnly: true
-            })
-            const results = await userExist.save()
-            res.status(200).send({ message: "Login Successfuly" });
-        } else {
-            res.status(400).send({ message: "User details is not correct!" });
+    if (count > 3) {
+        if (loginTry) {
+            loginTry = false;
+            const timer = setInterval(() => {
+                lefttime--;
+                if (lefttime == 0) {
+                    count = 0;
+                    lefttime = 1800;
+                    loginTry = true;
+                    clearInterval(timer)
+                }
+            }, 1000);
         }
+        res.status(200).send({ message: `Your account is locked!!. Wait for ${Math.floor(lefttime / 60)} min left` })
     } else {
-        res.status(400).send({ message: "User not found!" });
+        const userExist = await userDb.findOne({ email: email })
+
+        if (userExist) {
+            const isMatch = await bcrypt.compare(password, userExist.password)
+            if (isMatch) {
+                const token = await userExist.genrateToken();
+                res.cookie('jwt', token, {
+                    httpOnly: true
+                })
+                const results = await userExist.save()
+                res.status(200).send({ message: "Login Successfuly" });
+            } else {
+                res.status(400).send({ message: "User details is not correct!" });
+                count++;
+            }
+        } else {
+            count++;
+            res.status(400).send({ message: "User not found!" });
+        }
     }
+
+
 }
 
 exports.logout = (req, res) => {
